@@ -1,6 +1,10 @@
-################
-CS:APP Shell Lab
-################
+########################
+CS:APP Shell Lab Project
+Author: Akash Gajjar
+Student ID: 201501212
+########################
+
+This is a part of an assignment given in my course of System Software.
 
 Files:
 
@@ -20,3 +24,4 @@ mysplit.c	# Forks a child that spins for <n> seconds
 mystop.c        # Spins for <n> seconds and sends SIGTSTP to itself
 myint.c         # Spins for <n> seconds and sends SIGINT to itself
 
+Drop me a mail at akashgajjar8@gmail.com for any quaries or suggestions.
