@@ -390,7 +390,7 @@ int valid_argument(char *tmp){          //function to check if the argument prov
  */
 void waitfg(pid_t pid)
 {
-    waitpid(pid,NULL,0);
+    pause();
     return;
 }
 
@@ -407,6 +407,7 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig)
 {
+    while(waitpid(-1,NULL,WNOHANG)!=-1);
     return;
 }
 
