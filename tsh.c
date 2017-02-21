@@ -49,6 +49,7 @@ struct job_t {              /* The job struct */
     char cmdline[MAXLINE];  /* command line */
 };
 struct job_t jobs[MAXJOBS]; /* The job list */
+typedef struct job_t job_t; /* We don't want to write typedef everytime */
 /* End global variables */
 
 
@@ -84,6 +85,8 @@ void unix_error(char *msg);
 void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
+
+int valid_argument(char *);
 
 /*
  * main - The shell's main routine
@@ -122,7 +125,7 @@ int main(int argc, char **argv)
     Signal(SIGTSTP, sigtstp_handler);  /* ctrl-z */
     Signal(SIGCHLD, sigchld_handler);  /* Terminated or stopped child */
 
-    /* This one provides a clean way to kill the shell */
+    /* fg %2: No such job* This one provides a clean way to kill the shell */
     Signal(SIGQUIT, sigquit_handler);
 
     /* Initialize the job list */
@@ -279,9 +282,107 @@ int builtin_cmd(char **argv)
 /*
  * do_bgfg - Execute the builtin bg and fg commands
  */
-void do_bgfg(char **argv)
-{
+void do_bgfg(char **argv){
+    if(argv[1]==NULL){
+        if(strcmp(argv[0],"fg")==0) printf("fg command requires PID or %%jobid argument\n");
+        else printf("fg command requires PID or %%jobid argument\n");
+    }else{
+        if(strcmp(argv[0],"fg")==0){
+            int valid = valid_argument(argv[1]);
+            if(valid){
+                if(argv[1][0]=='%'){
+                    int jid;
+                    char temp[10];     //max length for pid or jid
+                    int j = 1;
+                    int i = 0;
+                    while(j<strlen(argv[1])){
+                        temp[i] = argv[1][j];
+                        j++;
+                        i++;
+                    }
+                    temp[i] = '\0';
+                    jid = atoi(temp);
+                    job_t* p;
+                    p =  getjobjid(jobs,jid);
+                    if(p==NULL){
+                        printf("fg %%%d: No such job\n",jid);
+                        return;
+                    }else{
+                        //code for putting the process with job id pid to foreground
+                        return;
+                    }
+                }else{
+                    int pid = atoi(argv[1]);
+                    job_t* p;
+                    p = getjobjid(jobs,pid);
+                    if(p==NULL){
+                        printf("(%d): No such process\n",pid);
+                        return;
+                    }else{
+                        //code for putting the process with process id jid to foreground
+                        return;
+                    }
+                }
+            }else{
+                printf("fg: argument must be a PID or %%jobid\n");
+                return;
+            }
+        }else{
+            int valid = valid_argument(argv[1]);
+            if(valid){
+                if(argv[1][0]=='%'){
+                    int jid;
+                    char temp[10];     //max length for pid or jid
+                    int j = 1;
+                    int i = 0;
+                    while(j<strlen(argv[1])){
+                        temp[i] = argv[1][j];
+                        j++;
+                        i++;
+                    }
+                    temp[i] = '\0';
+                    jid = atoi(temp);
+                    job_t* p;
+                    p =  getjobjid(jobs,jid);
+                    if(p==NULL){
+                        printf("bg %%%d: No such job\n",jid);
+                        return;
+                    }else{
+                        //code for putting the process with job id pid to foreground
+                        return;
+                    }
+                }else{
+                    int pid = atoi(argv[1]);
+                    job_t* p;
+                    p = getjobjid(jobs,pid);
+                    if(p==NULL){
+                        printf("(%d): No such process\n",pid);
+                        return;
+                    }else{
+                        //code for putting the process with process id jid to foreground
+                        return;
+                    }
+                }
+            }else{
+                printf("bg: argument must be a PID or %%jobid\n");
+                return;
+            }
+        }
     return;
+    }
+}
+
+int valid_argument(char *tmp){          //function to check if the argument provided is a number or not
+    int j,isDigit;
+    if(tmp[0]=='%') j = 1;
+    else j = 0;
+    while(j<strlen(tmp)){
+      isDigit = isdigit(tmp[j]);
+      if (isDigit == 0) break;
+      j++;
+    }
+    if(j==strlen(tmp)) return 1;
+    else return 0;
 }
 
 /*
