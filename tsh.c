@@ -39,6 +39,7 @@
 extern char **environ;      /* defined in libc */
 char prompt[] = "tsh> ";    /* command line prompt (DO NOT CHANGE) */
 int verbose = 0;            /* if true, print additional output */
+pid_t mainpid;              /* to store the process id of the main function */
 int nextjid = 1;            /* next job ID to allocate */
 char sbuf[MAXLINE];         /* for composing sprintf messages */
 
@@ -95,6 +96,7 @@ int main(int argc, char **argv)
 {
     char c;
     char cmdline[MAXLINE];
+    mainpid = getpid();
     int emit_prompt = 1; /* emit prompt (default) */
 
     /* Redirect stderr to stdout (so that driver will get all output
@@ -170,14 +172,24 @@ void eval(char *cmdline)
 {
     if(strcmp("\n",cmdline)==0) return;
 	char *argv[MAXARGS];
-	parseline(cmdline,argv);
-	int bg = builtin_cmd(argv);
+	int bg = parseline(cmdline,argv);
+	int bin = builtin_cmd(argv);
 
-	if(!bg){
+	if(!bin){
 		//fork process
 		pid_t  cpid;
 
-		if ((cpid = fork()) < 0) {
+		sigset_t sset;
+        sigemptyset(&sset);
+        sigaddset(&sset, SIGCHLD);
+        sigprocmask(SIG_BLOCK, &sset, 0);
+
+		cpid = fork();
+        if(cpid!=0) addjob(jobs,cpid,1,cmdline);
+
+        sigprocmask(SIG_UNBLOCK, &sset, 0);
+
+		if (cpid < 0) {
 		     printf("*** ERROR: forking child process failed\n");
 		     exit(1);
 		}
@@ -188,7 +200,8 @@ void eval(char *cmdline)
 		     }
 		}
 		else {
-		     waitfg(cpid);
+		    if(!bg) waitfg(cpid);
+            else return;
 		}
 	}
     return;
@@ -285,9 +298,8 @@ int builtin_cmd(char **argv)
 void do_bgfg(char **argv){
     if(argv[1]==NULL){
         if(strcmp(argv[0],"fg")==0) printf("fg command requires PID or %%jobid argument\n");
-        else printf("fg command requires PID or %%jobid argument\n");
+        else printf("bg command requires PID or %%jobid argument\n");
     }else{
-        if(strcmp(argv[0],"fg")==0){
             int valid = valid_argument(argv[1]);
             if(valid){
                 if(argv[1][0]=='%'){
@@ -305,7 +317,8 @@ void do_bgfg(char **argv){
                     job_t* p;
                     p =  getjobjid(jobs,jid);
                     if(p==NULL){
-                        printf("fg %%%d: No such job\n",jid);
+                        if(strcmp(argv[0],"fg")==0) printf("fg %%%d: No such job\n",jid);
+                        else printf("bg %%%d: No such job\n",jid);
                         return;
                     }else{
                         //code for putting the process with job id pid to foreground
@@ -324,50 +337,10 @@ void do_bgfg(char **argv){
                     }
                 }
             }else{
-                printf("fg: argument must be a PID or %%jobid\n");
+                if(strcmp(argv[0],"fg")==0) printf("fg: argument must be a PID or %%jobid\n");
+                else printf("bg: argument must be a PID or %%jobid\n");
                 return;
             }
-        }else{
-            int valid = valid_argument(argv[1]);
-            if(valid){
-                if(argv[1][0]=='%'){
-                    int jid;
-                    char temp[10];     //max length for pid or jid
-                    int j = 1;
-                    int i = 0;
-                    while(j<strlen(argv[1])){
-                        temp[i] = argv[1][j];
-                        j++;
-                        i++;
-                    }
-                    temp[i] = '\0';
-                    jid = atoi(temp);
-                    job_t* p;
-                    p =  getjobjid(jobs,jid);
-                    if(p==NULL){
-                        printf("bg %%%d: No such job\n",jid);
-                        return;
-                    }else{
-                        //code for putting the process with job id pid to foreground
-                        return;
-                    }
-                }else{
-                    int pid = atoi(argv[1]);
-                    job_t* p;
-                    p = getjobjid(jobs,pid);
-                    if(p==NULL){
-                        printf("(%d): No such process\n",pid);
-                        return;
-                    }else{
-                        //code for putting the process with process id jid to foreground
-                        return;
-                    }
-                }
-            }else{
-                printf("bg: argument must be a PID or %%jobid\n");
-                return;
-            }
-        }
     return;
     }
 }
@@ -407,7 +380,13 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig)
 {
-    while(waitpid(-1,NULL,WNOHANG)!=-1);
+    pid_t pid;
+    int status;
+    while (1) {
+       pid = waitpid(-1, &status, WNOHANG | WUNTRACED);
+       if (pid <= 0)    /* No more zombie children to reap. */
+          break;
+    }
     return;
 }
 
