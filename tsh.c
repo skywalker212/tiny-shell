@@ -185,7 +185,10 @@ void eval(char *cmdline)
         sigprocmask(SIG_BLOCK, &sset, 0);
 
 		cpid = fork();
-        if(cpid!=0) addjob(jobs,cpid,1,cmdline);
+        if(cpid!=0) {
+            if(bg) addjob(jobs,cpid,BG,cmdline);
+            else addjob(jobs,cpid,FG,cmdline);
+        }
 
         sigprocmask(SIG_UNBLOCK, &sset, 0);
 
@@ -196,12 +199,16 @@ void eval(char *cmdline)
 		else if (cpid == 0) {
 		     if (execvp(*argv, argv) < 0) {
 		          printf("%s: Command not found\n",argv[0]);
+		          deletejob(jobs,cpid);
 		          exit(1);
 		     }
 		}
 		else {
 		    if(!bg) waitfg(cpid);
-            else return;
+            else{
+                printf("[%d] (%d) %s", pid2jid(cpid), cpid, cmdline);
+                return;
+            }
 		}
 	}
     return;
@@ -278,7 +285,7 @@ int builtin_cmd(char **argv)
 		}
 		if(bjobs==0)	exit(0);
 		else{
-			printf("There are Background jobs running!!");
+			printf("There are Background jobs running!!\n");
 			return 1;
 		}
 	}else if(strcmp(argv[0],"jobs")==0){
@@ -302,6 +309,7 @@ void do_bgfg(char **argv){
     }else{
             int valid = valid_argument(argv[1]);
             if(valid){
+                job_t* p;
                 if(argv[1][0]=='%'){
                     int jid;
                     char temp[10];     //max length for pid or jid
@@ -314,28 +322,40 @@ void do_bgfg(char **argv){
                     }
                     temp[i] = '\0';
                     jid = atoi(temp);
-                    job_t* p;
                     p =  getjobjid(jobs,jid);
                     if(p==NULL){
                         if(strcmp(argv[0],"fg")==0) printf("fg %%%d: No such job\n",jid);
                         else printf("bg %%%d: No such job\n",jid);
                         return;
-                    }else{
-                        //code for putting the process with job id pid to foreground
-                        return;
                     }
                 }else{
                     int pid = atoi(argv[1]);
-                    job_t* p;
-                    p = getjobjid(jobs,pid);
+                    p = getjobpid(jobs,pid);
                     if(p==NULL){
                         printf("(%d): No such process\n",pid);
                         return;
-                    }else{
-                        //code for putting the process with process id jid to foreground
-                        return;
                     }
                 }
+                if(strcmp(argv[0],"fg")==0){
+                    if(p->state == ST){
+                            p->state = FG;
+                            int groupid = fgpid(jobs);
+                            int i = kill(-groupid,SIGCONT);
+                            printf("%d ",i);
+                            waitfg(p->pid);
+
+                    }
+                }else{
+                    if(p->state == ST){
+                            p->state = BG;
+                            int groupid = fgpid(jobs);
+                            kill(-groupid,SIGCONT);
+                    }else if(p->state == BG){
+                            p->state = FG;
+                            waitfg(p->pid);
+                    }
+                }
+                return;
             }else{
                 if(strcmp(argv[0],"fg")==0) printf("fg: argument must be a PID or %%jobid\n");
                 else printf("bg: argument must be a PID or %%jobid\n");
@@ -363,7 +383,10 @@ int valid_argument(char *tmp){          //function to check if the argument prov
  */
 void waitfg(pid_t pid)
 {
-    pause();
+    job_t* temp = getjobpid(jobs,pid);
+    while(temp->state == FG){
+        sleep(1);
+    }
     return;
 }
 
@@ -384,8 +407,25 @@ void sigchld_handler(int sig)
     int status;
     while (1) {
        pid = waitpid(-1, &status, WNOHANG | WUNTRACED);
-       if (pid <= 0)    /* No more zombie children to reap. */
-          break;
+       if (pid <= 0)  break;   /* No more zombie children to reap. */
+       else{
+        if(WIFEXITED(status)){
+                job_t* temp = getjobpid(jobs,pid);
+                temp->state = UNDEF;
+                deletejob(jobs,pid);
+        }
+        else if(WIFSIGNALED(status)) {
+                printf("[%d] (%d) terminated by signal %d\n",pid2jid(pid),pid,sig);
+                deletejob(jobs,pid);
+        }
+        else if(WIFSTOPPED(status)) {
+                job_t* temp;
+                printf("[%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,sig);
+                temp = getjobpid(jobs,pid);
+                temp->state = ST;
+        }
+       }
+
     }
     return;
 }
@@ -397,6 +437,10 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig)
 {
+    int gpid = fgpid(jobs);
+    if(gpid!=0){
+        kill(gpid,SIGKILL);
+    }
     return;
 }
 
@@ -407,6 +451,10 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig)
 {
+    int gpid = fgpid(jobs);
+    if(gpid!=0){
+        kill(gpid,SIGSTOP);
+    }
     return;
 }
 
