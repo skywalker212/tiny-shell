@@ -53,7 +53,6 @@ struct job_t jobs[MAXJOBS]; /* The job list */
 typedef struct job_t job_t; /* We don't want to write typedef everytime */
 /* End global variables */
 
-job_t* temp;
 /* Function prototypes */
 
 /* Here are the functions that you will implement */
@@ -193,15 +192,13 @@ void eval(char *cmdline)
 		if (cpid < 0) {
 		     printf("*** ERROR: forking child process failed\n");
 		     exit(1);
-		}
-		else if (cpid == 0) {
-		     if (execvp(*argv, argv) < 0) {
+		}else if (cpid == 0) {
+            if (execvp(*argv, argv) < 0) {
 		          printf("%s: Command not found\n",argv[0]);
 		          deletejob(jobs,cpid);
 		          exit(1);
 		     }
-		}
-		else {
+		}else {
 		    if(!bg) waitfg(cpid);
             else{
                 printf("[%d] (%d) %s", pid2jid(cpid), cpid, cmdline);
