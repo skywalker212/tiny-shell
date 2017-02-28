@@ -272,17 +272,14 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv)
 {
-    	if(strcmp(argv[0],"quit")==0){
-		int bjobs = 0;
-		int i;
-		for(i=0;i<MAXJOBS;i++){
-			if(jobs[i].state==2  || jobs[i].state==3) bjobs++;
-		}
-		if(bjobs==0)	exit(0);
-		else{
-			printf("There are Background jobs running!!\n");
-			return 1;
-		}
+    if(strcmp(argv[0],"quit")==0){
+        int i;
+        for(i=0;i<MAXJOBS;i++){
+            if(jobs[i].state == BG) {
+                waitfg(jobs[i].pid);
+            }
+        }
+        exit(0);
 	}else if(strcmp(argv[0],"jobs")==0){
 		listjobs(jobs);
 		//("Call to jobs returned sucessfully\n");
@@ -386,18 +383,16 @@ void sigchld_handler(int sig)
        if (pid <= 0)  break;   /* No more zombie children to reap. */
        else{
         if(WIFEXITED(status)){
-                job_t* temp = getjobpid(jobs,pid);
-                temp->state = UNDEF;
-                deletejob(jobs,pid);
+            job_t* temp = getjobpid(jobs,pid);
+            temp->state = UNDEF;
+            deletejob(jobs,pid);
         }
         else if(WIFSIGNALED(status)){
-                job_t* temp = getjobpid(jobs,pid);
-                if(temp->state == FG){
-                    printf("[%d] (%d) terminated by signal %d\n",pid2jid(pid),pid,sig);
-                    deletejob(jobs,pid);
-                }
+            sigint_handler(WTERMSIG(status));
         }
-        else if(WIFSTOPPED(status)) printf("[%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,sig);
+        else if(WIFSTOPPED(status)){
+            sigtstp_handler(WSTOPSIG(status));
+        }
 
        }
 
@@ -412,9 +407,12 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig)
 {
-    int gpid = fgpid(jobs);
-    if(gpid!=0){
-        kill(gpid,SIGINT);
+    int pid = fgpid(jobs);
+    job_t* temp = getjobpid(jobs,pid);
+    if(pid!=0 && temp->state == FG){
+        deletejob(jobs,pid);
+        printf("Job [%d] (%d) terminated by signal %d\n",pid2jid(pid),pid,sig);
+        kill(pid,SIGINT);
     }
     return;
 }
@@ -426,12 +424,12 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig)
 {
-    int gpid = fgpid(jobs);
-    if(gpid!=0){
-        job_t* temp;
-        temp = getjobpid(jobs,gpid);
+    int pid = fgpid(jobs);
+    if(pid!=0){
+        printf("Job [%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,sig);
+        job_t* temp = getjobpid(jobs,pid);
         temp->state = ST;
-        kill(gpid,SIGTSTP);
+        kill(pid,SIGTSTP);
     }
     return;
 }
