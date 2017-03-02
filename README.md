@@ -14,7 +14,6 @@ This is a part of an assignment in my course of System Software. This is a look 
 ###The files that are used to test shell
  - sdriver.pl	# The trace-driven shell driver
  - trace*.txt	# The 15 trace files that control the shell driver
- - tshref.out 	# Example output of the reference shell on all 15 traces
 
 ----------
 
