@@ -381,14 +381,15 @@ void sigchld_handler(int sig)
         }
         else if(WIFSIGNALED(status)){
             job_t* temp = getjobpid(jobs,pid);
+            printf("Job [%d] (%d) terminated by signal %d\n",pid2jid(pid),pid,WTERMSIG(status));
             if(temp->state == FG) deletejob(jobs,pid);
         }
         else if(WIFSTOPPED(status)){
             job_t* temp = getjobpid(jobs,pid);
             temp->state = ST;
+            printf("Job [%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,WSTOPSIG(status));
         }
        }
-
     }
     return;
 }
@@ -403,7 +404,6 @@ void sigint_handler(int sig)
     int pid = fgpid(jobs);
     if(pid!=0){
         kill(-pid,SIGINT);
-        printf("Job [%d] (%d) terminated by signal %d\n",pid2jid(pid),pid,sig);
     }
     return;
 }
@@ -417,7 +417,7 @@ void sigtstp_handler(int sig)
 {
     int pid = fgpid(jobs);
     if(pid!=0){
-        printf("Job [%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,sig);
+        //printf("Job [%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,sig);
         kill(-pid,SIGTSTP);
     }
     return;
