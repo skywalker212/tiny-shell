@@ -1,7 +1,7 @@
 /*
  * tsh - A tiny shell program with job control
  *
- * Name: Akash Gajjar  || ID: 201501212
+ * Name: Akash Gajjar  || ID: 201501212 || E-Mail ID: 201501212@daiict.ac.in
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,7 +50,7 @@ struct job_t {              /* The job struct */
     char cmdline[MAXLINE];  /* command line */
 };
 struct job_t jobs[MAXJOBS]; /* The job list */
-typedef struct job_t job_t; /* We don't want to write typedef everytime */
+typedef struct job_t job_t; /* We don't want to write struct job_t everytime */
 /* End global variables */
 
 /* Function prototypes */
@@ -170,36 +170,36 @@ int main(int argc, char **argv)
 void eval(char *cmdline)
 {
     char *argv[MAXARGS];
-	int bg,bin;
-    pid_t pid;
-	sigset_t mask;
+	int bg,bin;             //to store the return values of parseline and builtin_cmd
+    pid_t pid;              //to store the pid of the newly created process
+	sigset_t mask;          //declaring a signal set for blocking signals
 
     bg = parseline(cmdline, argv);
     bin = builtin_cmd(argv);
 
-	if(!bin){
-		sigemptyset(&mask);
+	if(!bin){                       //this will execute only if builtin_cmd returns 0
+		sigemptyset(&mask);             //initializing the signal set, I have not done the error checking if any of the following three commands fail
 		sigaddset(&mask, SIGCHLD);
 		sigprocmask(SIG_BLOCK, &mask, NULL);
 
-		if((pid = fork()) < 0){
-            fprintf(stderr,"Forking Error!\n");
+		if((pid = fork()) < 0){                     //forking a child
+            fprintf(stderr,"Forking Error!\n");         //error if forking fails, writing error to stderr instead of stdout
             return;
-		}else if(pid == 0){
+		}else if(pid == 0){                             //instructions for the child
 			setpgid(0, 0);
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
-			if(execvp(argv[0], argv) < 0) {
+			if(execvp(argv[0], argv) < 0) {             //exec the child to given command and print error if it fails
 				fprintf(stderr,"%s: Command not found\n", argv[0]);
 				exit(1);
 			}
-        }else{
-			if(!bg) addjob(jobs, pid, FG, cmdline);
+        }else{                                          //instructions for the parent
+			if(!bg) addjob(jobs, pid, FG, cmdline);     //adding the job to joblist before unblocking signals
 			else addjob(jobs, pid, BG, cmdline);
 
 			sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
-			if (!bg) waitfg(pid);
+			if (!bg) waitfg(pid);                                           //running the process in foreground if the process is a foreground process
 			else printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
 		}
 	}
@@ -269,7 +269,7 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv)
 {
-    if(strcmp(argv[0],"quit")==0){
+    if(strcmp(argv[0],"quit")==0){              //if the command is quit then wait for the background processes to finish and then quit, here I'm not printing a message if there are background jobs running
         int i;
         for(i=0;i<MAXJOBS;i++){
             if(jobs[i].state == BG) {
@@ -277,50 +277,51 @@ int builtin_cmd(char **argv)
             }
         }
         exit(0);
-	}else if(strcmp(argv[0],"jobs")==0){
+	}else if(strcmp(argv[0],"jobs")==0){        //call listjobs function if the command is jobs
 		listjobs(jobs);
 		return 1;
-    }else if(strcmp(argv[0],"bg")==0 || strcmp(argv[0],"fg")==0){
+    }else if(strcmp(argv[0],"bg")==0 || strcmp(argv[0],"fg")==0){   //call do_bgfg function if the command is bg or fg
 		do_bgfg(argv);
 		return 1;
-	}else return 0; //not a built in command
+	}else return 0;                             //return 0 if it is not a built in command
 }
 
 /*
  * do_bgfg - Execute the builtin bg and fg commands
  */
-void do_bgfg(char **argv){
+void do_bgfg(char **argv)
+{
     job_t* p = NULL;
     char *id = argv[1];
-    if(id==NULL){
+    if(id==NULL){                           //if the argument to bg or fg is null
         if(strcmp(argv[0],"fg")==0) fprintf(stderr,"fg command requires PID or %%jobid argument\n");
         else fprintf(stderr,"bg command requires PID or %%jobid argument\n");
         return;
-    }else if(id[0] == '%' && valid_argument(id)){
+    }else if(id[0] == '%' && valid_argument(id)){               //if the argument passed is a job id
         int jid = atoi(&id[1]);
         p =  getjobjid(jobs,jid);
-        if(p==NULL){
+        if(p==NULL){                                        //if there is no job with the given job id
             fprintf(stderr,"%s: No such job\n",id);
             return;
         }
-    }else if(isdigit(id[0]) && valid_argument(id)){
+    }else if(isdigit(id[0]) && valid_argument(id)){             //if the argument passed is a process id
         int pid = atoi(id);
         p = getjobpid(jobs,pid);
-        if(p==NULL){
+        if(p==NULL){                                                //if there is no job with the given process id
                 fprintf(stderr,"(%d): No such process\n",pid);
                 return;
         }
-    }else{
+    }else{                                                              //if the supplied job or process id is invalid
         if(strcmp(argv[0],"fg")==0) fprintf(stderr,"fg: argument must be a PID or %%jobid\n");
         else fprintf(stderr,"bg: argument must be a PID or %%jobid\n");
     return;
     }
 
-    if(kill(-p->pid, SIGCONT) < 0) {
+    if(kill(-p->pid, SIGCONT) < 0) {                            //if everything turns out to be fine then send send sigcont to the process group
         fprintf(stderr,"Can't resume the process!\n");
         return;
     }
-    if(strcmp("fg", argv[0]) == 0) {
+    if(strcmp("fg", argv[0]) == 0) {                            //if the process is a foreground process then change it's state to fg and wait for it to terminate
         p->state = FG;
         waitfg(p->pid);
     }else{
@@ -375,16 +376,14 @@ void sigchld_handler(int sig)
        if (pid <= 0)  break;                                // No more zombie children to reap.
        else{
         job_t* temp = getjobpid(jobs,pid);
-        if(WIFEXITED(status)){
+        if(WIFEXITED(status)){                          //if child exited normally then delete the job
             temp->state = UNDEF;
             deletejob(jobs,pid);
-        }
-        else if(WIFSIGNALED(status)){
+        }else if(WIFSIGNALED(status)){                       //if child was sent a termination signal then display the message and delete the job
             job_t* temp = getjobpid(jobs,pid);
             printf("Job [%d] (%d) terminated by signal %d\n",pid2jid(pid),pid,WTERMSIG(status));
             if(temp->state == FG) deletejob(jobs,pid);
-        }
-        else if(WIFSTOPPED(status)){
+        }else if(WIFSTOPPED(status)){                           //if child was stopped then change it's status to stopped
             job_t* temp = getjobpid(jobs,pid);
             temp->state = ST;
             printf("Job [%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,WSTOPSIG(status));
@@ -402,9 +401,7 @@ void sigchld_handler(int sig)
 void sigint_handler(int sig)
 {
     int pid = fgpid(jobs);
-    if(pid!=0){
-        kill(-pid,SIGINT);
-    }
+    if(pid!=0) kill(-pid,SIGINT);                  //send sigint to the process group
     return;
 }
 
@@ -416,10 +413,7 @@ void sigint_handler(int sig)
 void sigtstp_handler(int sig)
 {
     int pid = fgpid(jobs);
-    if(pid!=0){
-        //printf("Job [%d] (%d) stopped by signal %d\n",pid2jid(pid),pid,sig);
-        kill(-pid,SIGTSTP);
-    }
+    if(pid!=0) kill(-pid,SIGTSTP);                  //send sigtstp to the process group
     return;
 }
 
