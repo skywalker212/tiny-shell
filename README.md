@@ -1,7 +1,11 @@
 #**Tiny Shell**
+By Akash Gajjar
+
+###Requirements
+Knowledge of c programming, linux commandline and linux processes is required to understand this piece of code.
 
 ###Brief Intro
-This is a part of an assignment in my course of System Software. This is a look alike shell program and it has a limited functionality.
+This is a part of an assignment in my course of System Software. This is a look alike shell program and it has a limited functionality. It is an easy project if you follow getting started pdf. 
 
 ###Files
  - Makefile	                - Compiles your shell program and runs the tests
@@ -29,3 +33,6 @@ This is a part of an assignment in my course of System Software. This is a look 
 
 Click [here](https://www.facebook.com/plyterbyrt "Facebook Profile") to know me better.
 Drop me a mail at akashgajjar8@gmail.com for any queries or suggestions.
+
+
+##PEACE
