@@ -1,7 +1,5 @@
 /*
  * tsh - A tiny shell program with job control
- *
- * Name: Akash Gajjar  || ID: 201501212 || E-Mail ID: 201501212@daiict.ac.in
  */
 #include <stdio.h>
 #include <stdlib.h>
